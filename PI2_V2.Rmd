@@ -18,8 +18,8 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Dataset
 
+# Libraries
 ```{r}
 library(tidyverse)  # data manipulation
 library(cluster)    # clustering algorithms
@@ -29,32 +29,68 @@ library(gridExtra)
 library(fpc)
 library(dbscan)
 library(mclust)
+library(adamethods)
+library(car) # Companion to Applied Regression
+library(caret)
+library(randomForest)
+library(mlbench)
+library(fpc)
 ```
 
-## Importation
+
+# Dataset importation
+```{r}
+Dataset = function()
+{
+  # n is the number of outliers to remove
+  df = read.csv("Last.csv", row.names = 1, sep = ';')
+  
+  # Omit non available values if there are any left (pre-treated dataset)
+  df <- na.omit(df)
+  
+  # Feature scaling through standardization is an important preprocessing step for many machine learning algorithms. Standardization involves rescaling the    features such that they have the properties of a standard normal distribution with a mean of 0 and a standard deviation of 1. It helps to normalise the      data within a particular range and it can also help in speeding up the calculations in the algorithms.
+  df <- scale(df)
+  
+  return (df)
+}
+```
 
 ```{r}
-df = read.csv("Last.csv", row.names = 1, sep = ';')
+df = Dataset()
 ```
 
-Omit non available values if there are any left (pre-treated dataset)
+
+Remove Redundant Features
+Generally, you want to remove attributes with an absolute correlation of 0.75 or higher.
 ```{r}
-df <- na.omit(df)
+# ensure the results are repeatable
+set.seed(7)
+# calculate correlation matrix
+correlationMatrix <- cor(df)
+# summarize the correlation matrix
+print(correlationMatrix)
+# find attributes that are highly corrected (ideally >0.75)
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75)
+# print indexes of highly correlated attributes
+print(highlyCorrelated)
 ```
 
-Feature scaling through standardization is an important preprocessing step for many machine learning algorithms. Standardization involves rescaling the features such that they have the properties of a standard normal distribution with a mean of 0 and a standard deviation of 1. It helps to normalise the data within a particular range and it can also help in speeding up the calculations in the algorithms.
-```{r}
-df <- scale(df)
-head(df)
-```
 
-#Outlier Treatment
+# Outlier Treatment
 
 Outliers can drastically bias/change the fit estimates and predictions. 
 
-##Detect outliers
+
+## Detect outliers
 
 Multivariate Model Approach
+```{r}
+new.df = as.data.frame.matrix(df)
+
+mod <- lm(new.df$Pre.Tax.ROE ~ ., data = new.df)
+```
+
+## Cook's distance outlier test
 
 Declaring an observation as an outlier based on just one feature could lead to unrealistic inferences. When you have to decide if an individual entity is an extreme value or not, it is better to collectively consider the features (X's) that matter -> Using Cook's Distance.
 
@@ -71,31 +107,51 @@ Y^j(i) is the value of jth fitted response, where the fit does not include obser
 MSE is the mean squared error.
 p is the number of coefficients in the regression model.
 
-```{r}
-new.df = as.data.frame.matrix(df)
-
-mod <- lm( new.df$Pre.Tax.ROE ~ ., data = new.df)
-cooksd <- cooks.distance(mod)
-```
-
 In general use, the observations that have a cook's distance greater than 4 times the mean may be classified as influential.
 ```{r}
+cooksd <- cooks.distance(mod)
+
 plot(cooksd, pch="*", cex=2, main="Influential Obs by Cooks distance")  # plot cook's distance
 abline(h = 4*mean(cooksd, na.rm=T), col="red")  # add cutoff line
 text(x=1:length(cooksd)+1, y=cooksd, labels=ifelse(cooksd>4*mean(cooksd, na.rm=T),names(cooksd),""), col="red")  # add labels
 
 influential <- names(cooksd)[(cooksd > 4*mean(cooksd, na.rm=T))]
-new.df[influential, ]
+#new.df[influential, ]
 ```
 
-##Outliers Test
-
-The function outlierTest from car package gives the most extreme observation based on the given model.
+Get company indexes (vector of indexes)
 ```{r}
-car::outlierTest(mod)
+CompanyIndex = function(Df, vect)
+{
+  indexes = 0
+  
+  for (i in 1:length(vect))
+  {
+    indexes[i] = which(rownames(Df) == vect[i])
+  }
+  
+  return (indexes)
+}
 ```
 
-##Clustering Based Outlier Detection Technique
+```{r}
+outliers1 = CompanyIndex(Dataset(), influential)
+```
+
+
+## Companion to Applied Regression outlier test
+
+The function outlierTest from car package (Companion to Applied Regression) gives the most extreme observation based on the given model.
+```{r}
+car_outliers = outlierTest(mod)
+
+vect = names(car_outliers$rstudent)
+
+outliers2 = CompanyIndex(df, vect)
+```
+
+
+## Euclidean distance outlier test
 
 The function takes for parameters a dataframe, the number of outliers to detect and the number of centers for the k-means clustering.
 
@@ -106,6 +162,8 @@ First, it will do a PCA :
 In the next step we will calculate the distance (Euclidean) between the objects and cluster centers to determine the outliers and identify n largest distances which are outliers. 
 
 Finally we plot the graph with c clusters et n outliers detected we can remove later on for our final clustering.
+
+Get outliers (vector of n indexes of the outliers):
 ```{r}
 Outliers = function(Df, n, c)
 {
@@ -128,51 +186,86 @@ Outliers = function(Df, n, c)
   
   return (outliers)
 }
-
-test = Outliers(df,20,7)
 ```
 
 ```{r}
-distance <- get_dist(df)
+outliers3 = Outliers(df,30,1)
+```
+
+
+## kNN outlier test
+
+Description:
+k-nearest neighbors outlier detection method (kNNo). Each point's anomaly score is the distance to its kth nearest neighbor in the data set. Then, all points are ranked based on this distance. The higher an example's score is, the more anomalous it is.
+
+Usage:
+do_knno(data, k, top_n)
+
+Arguments:
+data    Data observations.
+k       Number of neighbors of a point that we are interested in.
+top_n	  Total number of outliers we are interested in.
+```{r}
+outliers4 = do_knno(df, 20, 10)
+```
+
+```{r}
+grid.arrange(outliers1, outliers2, outliers3, outliers4, nrow = 2)
+```
+
+
+
+On enleve les outliers de la dataset a terminer
+```{r}
+dataset = df[-outliers3,]
+data = as.data.frame.matrix(dataset)
+```
+
+
+Clustering
+```{r}
+distance <- get_dist(dataset)
 fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
 
-k2 <- kmeans(df, centers = 2, nstart = 25)
+k2 <- kmeans(dataset, centers = 2, nstart = 25)
 str(k2)
 k2
 
-p1 = fviz_cluster(k2, data = df) + ggtitle("k = 2")
+p1 = fviz_cluster(k2, data = dataset) + ggtitle("k = 2")
 
-k3 = kmeans(df, centers = 3, nstart = 25)
-p2 = fviz_cluster(k3, data = df) + ggtitle("k = 3")
+k3 = kmeans(dataset, centers = 3, nstart = 25)
+p2 = fviz_cluster(k3, data = dataset) + ggtitle("k = 3")
 
-k4 = kmeans(df, centers = 4, nstart = 25)
-p3 = fviz_cluster(k4, data = df) + ggtitle("k = 4")
+k4 = kmeans(dataset, centers = 4, nstart = 25)
+p3 = fviz_cluster(k4, data = dataset) + ggtitle("k = 4")
 
 grid.arrange(p1, p2, p3, nrow = 2)
 
 
 set.seed(123)
 
-fviz_nbclust(df, kmeans, method = "wss", k.max = 20)
+fviz_nbclust(dataset, kmeans, method = "wss", k.max = 20)
 
-fviz_nbclust(df, kmeans, method = "silhouette", k.max = 20)
+fviz_nbclust(dataset, kmeans, method = "silhouette", k.max = 20)
 
-fviz_nbclust(df, kmeans, method = "gap_stat", k.max = 20)
+fviz_nbclust(dataset, kmeans, method = "gap_stat", k.max = 20)
+
+# Compute k-means
+k = kmeans(dataset, centers = 7, nstart = 25)
+a1 = fviz_cluster(k, data = dataset) + ggtitle("k-means")
 
 # Compute PAM
-pam <- pam(df, 4) 
-# Visualize
+pam <- pam(dataset, 7) 
 a2 = fviz_cluster(pam) + ggtitle("PAM")
 
 # Compute CLARA
-clara <- clara(df, 4, samples = 50, pamLike = TRUE)
-# Visualize
+clara <- clara(dataset, 7, samples = 50, pamLike = TRUE)
 a3 = fviz_cluster(clara) + ggtitle("CLARA")
 
-grid.arrange(p3, a2, a3, nrow = 2)
+grid.arrange(a1, a2, a3, nrow = 2)
 
 
-PCA_Data = princomp(df, cor = T)
+PCA_Data = princomp(dataset, cor = T)
 str(PCA_Data)
 summary(PCA_Data)
 
@@ -180,10 +273,43 @@ PC1 <- PCA_Data$scores[,1]
 PC2 <- PCA_Data$scores[,2]
 
 X <- cbind(PC1, PC2)
-km <- kmeans(X, centers = 4)
+km <- kmeans(X, centers = 7)
 plot(PC1, PC2, col = km$cluster, xlab = "PC1", ylab = "PC2", main = "K-means clustering with PCA")
-points(km$centers, col = 1:3, pch = 3, cex = 2, lwd = 3)
+points(km$centers, col = 1:7, pch = 3, cex = 2, lwd = 3)
 ```
+
+comparing 2 cluster solutions
+```{r}
+gradient.color = list(low = "steelblue", high = "white")
+
+get_clust_tendency(data, n = 36, gradient.color)
+
+set.seed(123)
+
+res1 = data %>%
+scale() %>%
+eclust("kmeans", k = 7, graph = TRUE)
+
+res2 = data %>%
+scale() %>%
+eclust("pam", k = 7, graph = TRUE)
+
+res3 = data %>%
+scale() %>%
+eclust("clara", k = 7, graph = TRUE)
+
+s1 = fviz_silhouette(res1)
+s2 = fviz_silhouette(res2)
+s3 = fviz_silhouette(res3)
+
+grid.arrange(s1, s2, s3, nrow = 2)
+```
+
+
+
+
+
+
 
 
 
