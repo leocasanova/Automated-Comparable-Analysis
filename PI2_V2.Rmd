@@ -8,7 +8,7 @@ output:
     toc: true
     toc_depth: 2
     toc_float: true
-    theme: flatly
+    theme: cerulean
     highlight: espresso
 editor_options: 
   chunk_output_type: console
@@ -64,15 +64,15 @@ Remove Redundant Features
 Generally, you want to remove attributes with an absolute correlation of 0.75 or higher.
 ```{r}
 # ensure the results are repeatable
-set.seed(7)
+#set.seed(7)
 # calculate correlation matrix
-correlationMatrix <- cor(df)
+#correlationMatrix <- cor(df)
 # summarize the correlation matrix
-print(correlationMatrix)
+#print(correlationMatrix)
 # find attributes that are highly corrected (ideally >0.75)
-highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75)
+#highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75)
 # print indexes of highly correlated attributes
-print(highlyCorrelated)
+#print(highlyCorrelated)
 ```
 
 
@@ -136,6 +136,7 @@ CompanyIndex = function(Df, vect)
 
 ```{r}
 outliers1 = CompanyIndex(Dataset(), influential)
+outliers1
 ```
 
 
@@ -148,6 +149,9 @@ car_outliers = outlierTest(mod)
 vect = names(car_outliers$rstudent)
 
 outliers2 = CompanyIndex(df, vect)
+
+car_outliers
+outliers2
 ```
 
 
@@ -190,6 +194,7 @@ Outliers = function(Df, n, c)
 
 ```{r}
 outliers3 = Outliers(df,30,1)
+outliers3
 ```
 
 
@@ -206,31 +211,28 @@ data    Data observations.
 k       Number of neighbors of a point that we are interested in.
 top_n	  Total number of outliers we are interested in.
 ```{r}
-outliers4 = do_knno(df, 20, 10)
-```
-
-```{r}
-grid.arrange(outliers1, outliers2, outliers3, outliers4, nrow = 2)
+outliers4 = do_knno(df, 10, 10)
+outliers4
 ```
 
 
-
-On enleve les outliers de la dataset a terminer
+We can now remove the outliers from de dataset and begin the clustering methods.
 ```{r}
 dataset = df[-outliers3,]
 data = as.data.frame.matrix(dataset)
 ```
 
 
-Clustering
+# Clustering
+
+## Preview
+
+Preview with 2, 3 and 4 centers to get some insights.
 ```{r}
 distance <- get_dist(dataset)
 fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
 
 k2 <- kmeans(dataset, centers = 2, nstart = 25)
-str(k2)
-k2
-
 p1 = fviz_cluster(k2, data = dataset) + ggtitle("k = 2")
 
 k3 = kmeans(dataset, centers = 3, nstart = 25)
@@ -240,8 +242,10 @@ k4 = kmeans(dataset, centers = 4, nstart = 25)
 p3 = fviz_cluster(k4, data = dataset) + ggtitle("k = 4")
 
 grid.arrange(p1, p2, p3, nrow = 2)
+```
 
-
+## Optimal number of clusters
+```{r}
 set.seed(123)
 
 fviz_nbclust(dataset, kmeans, method = "wss", k.max = 20)
@@ -249,7 +253,10 @@ fviz_nbclust(dataset, kmeans, method = "wss", k.max = 20)
 fviz_nbclust(dataset, kmeans, method = "silhouette", k.max = 20)
 
 fviz_nbclust(dataset, kmeans, method = "gap_stat", k.max = 20)
+```
 
+## Clustering methods
+```{r}
 # Compute k-means
 k = kmeans(dataset, centers = 7, nstart = 25)
 a1 = fviz_cluster(k, data = dataset) + ggtitle("k-means")
@@ -266,8 +273,9 @@ grid.arrange(a1, a2, a3, nrow = 2)
 
 
 PCA_Data = princomp(dataset, cor = T)
-str(PCA_Data)
-summary(PCA_Data)
+
+#str(PCA_Data)
+#summary(PCA_Data)
 
 PC1 <- PCA_Data$scores[,1]
 PC2 <- PCA_Data$scores[,2]
@@ -278,12 +286,26 @@ plot(PC1, PC2, col = km$cluster, xlab = "PC1", ylab = "PC2", main = "K-means clu
 points(km$centers, col = 1:7, pch = 3, cex = 2, lwd = 3)
 ```
 
-comparing 2 cluster solutions
 ```{r}
-gradient.color = list(low = "steelblue", high = "white")
+OrderClust = function(clust)
+{
+  o = order(clust$cluster)
+  kmclust = data.frame(clust$cluster[o])
+  return (kmclust)
+}
+```
 
-get_clust_tendency(data, n = 36, gradient.color)
+```{r}
+d1 = OrderClust(km)
+d2 = OrderClust(pam)
+d3 = OrderClust(clara)
 
+result = cbind(d1, d2, d3)
+```
+
+
+## Clustering test
+```{r}
 set.seed(123)
 
 res1 = data %>%
@@ -304,6 +326,8 @@ s3 = fviz_silhouette(res3)
 
 grid.arrange(s1, s2, s3, nrow = 2)
 ```
+
+
 
 
 
