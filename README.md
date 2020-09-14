@@ -1,1 +1,5 @@
-# Automated-Comparable-Analysis
+# Automated-Comparables-Analysis
+
+Comparables analysis is the typical way of proceeding in corporate finance when one wants to compare two businesses. Since "enterprise value" cannot be completely meaningful when taken alone, comparison between two companies is first done by selecting companies that can be seen as belonging to the same "cluster", e.g. in terms of industry, size, products etc. and then by computing some well-known ratios (e.g. P/E, EV/Sales, EV/EBITDA, etc.) which can now be more meaningful on companies that can indeed be seen as "real competitors".
+
+The purpose of this project is to design and develop a tool for the automatic analysis of comparable companies. By collecting the know-how of a financial analyst and with the use of machine learning techniques, the tool is given in input the data of a set of companies (e.g. balance sheet) and is able to cluster companies in comparable sets, and telling which are the best performing and promising (in terms of business growth) of each set.
